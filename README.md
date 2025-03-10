@@ -1,42 +1,42 @@
-# Access Log Analyzer
+# Analyseur de logs d'accès
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)
 ![Pandas](https://img.shields.io/badge/Pandas-2.0+-150458?logo=pandas&logoColor=white)
 ![SQL Server](https://img.shields.io/badge/SQL%20Server-2019+-CC2927?logo=microsoftsqlserver&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-A **security analytics tool** that connects to the Nedap AEOS SQL Server database, extracts access events, and produces actionable intelligence: traffic patterns, statistical anomaly detection, tailgating alerts, and styled HTML/CSV reports.
+Outil d'**analyse de sécurité** qui se connecte à la base SQL Server Nedap AEOS, extrait les événements d'accès et produit des informations exploitables : schémas de trafic, détection d'anomalies statistiques, alertes de tailgating, et rapports HTML/CSV stylés.
 
-## Analysis Modules
+## Modules d'analyse
 
-### 1. Traffic Analysis
-- Hourly event distribution (granted vs. denied)
-- Daily trend over the analysis period
-- Top-N busiest access points
-- Top-N most active badge holders
-- Overall grant/deny ratio
+### 1. Analyse de trafic
+- Distribution horaire des événements (accordés vs refusés)
+- Tendance quotidienne sur la période d'analyse
+- Top-N des points d'accès les plus fréquentés
+- Top-N des porteurs de badges les plus actifs
+- Ratio global accordés/refusés
 
-### 2. Anomaly Detection (Z-Score)
-- **Hourly volume anomalies** — Spikes or drops in event count per hour
-- **User activity anomalies** — Individuals with unusually high daily usage
-- **Off-hours access** — Events outside business hours (07:00–20:00) and weekends
+### 2. Détection d'anomalies (Z-Score)
+- **Anomalies de volume horaire** — Pics ou chutes du nombre d'événements par heure
+- **Anomalies d'activité utilisateur** — Individus avec une utilisation quotidienne anormalement élevée
+- **Accès hors horaires** — Événements en dehors des heures ouvrables (07h00–20h00) et les week-ends
 
-### 3. Tailgating Detection
-- Identifies rapid-follow events: two different badges at the same door within N seconds
-- Configurable time threshold (default: 3 seconds)
+### 3. Détection de tailgating
+- Identifie les événements de suivi rapide : deux badges différents au même point d'accès en quelques secondes
+- Seuil de temps configurable (défaut : 3 secondes)
 
-### 4. Report Generation
-- **HTML report** — Dark-themed, styled report with KPI cards and tables
-- **CSV export** — Machine-readable data for each analysis module
+### 4. Génération de rapports
+- **Rapport HTML** — Rapport stylé avec thème sombre, cartes KPI et tableaux
+- **Export CSV** — Données lisibles par machine pour chaque module d'analyse
 
-## Tech Stack
+## Stack technique
 
-| Component | Technology |
-|-----------|-----------|
-| Language | Python 3.10+ |
-| Data | Pandas, NumPy |
-| Database | SQL Server (pyodbc) |
-| Output | HTML + CSS, CSV |
+| Composant | Technologie |
+|-----------|------------|
+| Langage | Python 3.10+ |
+| Données | Pandas, NumPy |
+| Base de données | SQL Server (pyodbc) |
+| Sortie | HTML + CSS, CSV |
 
 ## Installation
 
@@ -56,57 +56,57 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` with your AEOS SQL Server connection details.
+Modifier `.env` avec vos paramètres de connexion SQL Server AEOS.
 
-## Usage
+## Utilisation
 
 ```bash
-# Analyze last 30 days, output HTML + CSV
+# Analyser les 30 derniers jours, sortie HTML + CSV
 python main.py --days 30
 
-# Analyze last 7 days, HTML only, stricter anomaly threshold
+# Analyser les 7 derniers jours, HTML uniquement, seuil d'anomalie plus strict
 python main.py --days 7 --format html --threshold 1.5
 
-# Custom output directory
-python main.py --days 90 --output ./my-reports
+# Répertoire de sortie personnalisé
+python main.py --days 90 --output ./mes-rapports
 ```
 
-### Command Line Options
+### Options de la ligne de commande
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--days` | 30 | Number of days to analyze |
-| `--output` | `reports/` | Output directory |
-| `--format` | `both` | `html`, `csv`, or `both` |
-| `--threshold` | 2.0 | Z-score threshold for anomaly detection |
+| Option | Défaut | Description |
+|--------|--------|-------------|
+| `--days` | 30 | Nombre de jours à analyser |
+| `--output` | `reports/` | Répertoire de sortie |
+| `--format` | `both` | `html`, `csv`, ou `both` |
+| `--threshold` | 2.0 | Seuil Z-score pour la détection d'anomalies |
 
-## Sample Output
+## Exemple de sortie
 
-The HTML report includes:
-- **KPI cards** — Total events, grant rate, denied count, tailgating alerts
-- **Top access points** — Ranked by event volume
-- **Most active users** — Badge holders with highest usage
-- **Hourly anomalies** — Time periods with statistically unusual activity
-- **User anomalies** — Individuals with outlier behavior
-- **Tailgating events** — Rapid-follow badge presentations
+Le rapport HTML inclut :
+- **Cartes KPI** — Événements totaux, taux d'accès, refusés, alertes tailgating
+- **Top points d'accès** — Classement par volume d'événements
+- **Utilisateurs les plus actifs** — Porteurs de badges avec l'utilisation la plus élevée
+- **Anomalies horaires** — Périodes avec activité statistiquement inhabituelle
+- **Anomalies utilisateur** — Individus avec comportement atypique
+- **Événements de tailgating** — Présentations de badges en suivi rapide
 
-## Project Structure
+## Structure du projet
 
 ```
 access-log-analyzer/
-├── main.py                     # CLI entry point
+├── main.py                     # Point d'entrée CLI
 ├── analyzers/
-│   ├── data_loader.py          # SQL Server data extraction
-│   ├── traffic.py              # Traffic pattern analysis
-│   ├── anomaly.py              # Z-score anomaly detection
-│   ├── tailgate.py             # Tailgating detection
-│   └── report_generator.py     # HTML + CSV report output
-├── reports/                    # Generated reports (gitignored)
+│   ├── data_loader.py          # Extraction SQL Server
+│   ├── traffic.py              # Analyse de schémas de trafic
+│   ├── anomaly.py              # Détection d'anomalies Z-score
+│   ├── tailgate.py             # Détection de tailgating
+│   └── report_generator.py     # Sortie rapports HTML + CSV
+├── reports/                    # Rapports générés (hors VCS)
 ├── .env.example
 ├── requirements.txt
 └── README.md
 ```
 
-## License
+## Licence
 
-This project is licensed under the MIT License.
+Ce projet est sous licence MIT.
