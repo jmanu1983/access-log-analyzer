@@ -1,21 +1,25 @@
 """
-Traffic Analyzer — Patterns and distributions in access events.
+Traffic Analyzer — Patterns and distributions in AEOS access events.
+
+Uses AEOS EventInfo column names:
+    DateTime, EventTypeName, AccesspointName, CarrierFullName, Identifier
 """
 
 import pandas as pd
 
 
 class TrafficAnalyzer:
-    """Analyze traffic patterns from access event data."""
+    """Analyze traffic patterns from AEOS access event data."""
 
     def __init__(self, df: pd.DataFrame):
         self.df = df
 
     def hourly_distribution(self) -> pd.DataFrame:
         """Events grouped by hour of day."""
+        granted_mask = self.df["Granted"] == True
         grouped = self.df.groupby("Hour").agg(
-            total=("Granted", "count"),
-            granted=("Granted", "sum"),
+            total=("DateTime", "count"),
+            granted=("Granted", lambda x: x.eq(True).sum()),
         ).reset_index()
         grouped["denied"] = grouped["total"] - grouped["granted"]
         grouped["grant_rate"] = (grouped["granted"] / grouped["total"] * 100).round(1)
@@ -24,17 +28,22 @@ class TrafficAnalyzer:
     def daily_trend(self) -> pd.DataFrame:
         """Events grouped by date."""
         grouped = self.df.groupby("Date").agg(
-            total=("Granted", "count"),
-            granted=("Granted", "sum"),
+            total=("DateTime", "count"),
+            granted=("Granted", lambda x: x.eq(True).sum()),
         ).reset_index()
         grouped["denied"] = grouped["total"] - grouped["granted"]
         return grouped.sort_values("Date")
 
     def top_access_points(self, n: int = 10) -> pd.DataFrame:
-        """Most active access points."""
+        """
+        Most active access points (AEOS AccesspointName).
+        """
         return (
-            self.df.groupby("AccessPointName")
-            .agg(total=("Granted", "count"), granted=("Granted", "sum"))
+            self.df.groupby("AccesspointName")
+            .agg(
+                total=("DateTime", "count"),
+                granted=("Granted", lambda x: x.eq(True).sum()),
+            )
             .reset_index()
             .assign(denied=lambda x: x["total"] - x["granted"])
             .sort_values("total", ascending=False)
@@ -42,10 +51,15 @@ class TrafficAnalyzer:
         )
 
     def top_users(self, n: int = 20) -> pd.DataFrame:
-        """Most active badge holders."""
+        """
+        Most active badge holders (AEOS CarrierFullName + Identifier).
+        """
         return (
-            self.df.groupby(["PersonnelNr", "LastName", "FirstName", "Company"])
-            .agg(total=("Granted", "count"), denied=("Granted", lambda x: (~x.astype(bool)).sum()))
+            self.df.groupby(["CarrierId", "CarrierFullName", "Identifier"])
+            .agg(
+                total=("DateTime", "count"),
+                denied=("Granted", lambda x: x.eq(False).sum()),
+            )
             .reset_index()
             .sort_values("total", ascending=False)
             .head(n)
@@ -54,8 +68,8 @@ class TrafficAnalyzer:
     def grant_deny_ratio(self) -> dict:
         """Overall granted vs denied ratio."""
         total = len(self.df)
-        granted = int(self.df["Granted"].sum())
-        denied = total - granted
+        granted = int(self.df["Granted"].eq(True).sum())
+        denied = int(self.df["Granted"].eq(False).sum())
         return {
             "total": total,
             "granted": granted,

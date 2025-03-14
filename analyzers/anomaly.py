@@ -1,10 +1,13 @@
 """
-Anomaly Detector — Statistical anomaly detection for access events.
+Anomaly Detector — Statistical anomaly detection for AEOS access events.
 
 Uses Z-score analysis to identify unusual patterns in:
 - Hourly event volumes (spikes or drops)
-- Individual user activity (unusual badge usage)
+- Individual user activity (unusual badge usage by CarrierId/CarrierFullName)
 - Off-hours access (events outside business hours)
+
+Column names follow the AEOS WSDL EventInfo schema:
+    DateTime, EventTypeName, AccesspointName, CarrierFullName, CarrierId, Identifier
 """
 
 import pandas as pd
@@ -12,7 +15,7 @@ import numpy as np
 
 
 class AnomalyDetector:
-    """Detect anomalies in access event data using statistical methods."""
+    """Detect anomalies in AEOS access event data using statistical methods."""
 
     def __init__(self, df: pd.DataFrame, z_threshold: float = 2.0):
         self.df = df
@@ -26,7 +29,7 @@ class AnomalyDetector:
         any hour that deviates more than `z_threshold` standard deviations.
         """
         hourly = (
-            self.df.groupby([self.df["EventTime"].dt.date, "Hour"])
+            self.df.groupby([self.df["DateTime"].dt.date, "Hour"])
             .size()
             .reset_index(name="count")
         )
@@ -47,11 +50,12 @@ class AnomalyDetector:
         """
         Find users with unusually high daily event counts.
 
-        Flags users whose daily usage is more than `z_threshold` standard
-        deviations above the mean daily usage across all users.
+        Groups by Date + CarrierId/CarrierFullName (AEOS carrier identifiers),
+        then flags users whose daily usage deviates more than `z_threshold`
+        standard deviations above the mean.
         """
         daily_user = (
-            self.df.groupby(["Date", "PersonnelNr", "LastName", "FirstName"])
+            self.df.groupby(["Date", "CarrierId", "CarrierFullName"])
             .size()
             .reset_index(name="DailyCount")
         )
@@ -89,6 +93,6 @@ class AnomalyDetector:
         ] = "Weekend access"
 
         return off_hours[
-            ["EventTime", "PersonnelNr", "LastName", "FirstName",
-             "AccessPointName", "Granted", "Reason"]
-        ].sort_values("EventTime", ascending=False)
+            ["DateTime", "CarrierId", "CarrierFullName", "Identifier",
+             "AccesspointName", "EventTypeName", "Granted", "Reason"]
+        ].sort_values("DateTime", ascending=False)

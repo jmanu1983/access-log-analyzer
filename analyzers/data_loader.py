@@ -1,5 +1,17 @@
 """
 Data loader — Extract access events from AEOS SQL Server database.
+
+Uses the SQL view `vw_AeosEventLog` which exposes the AEOS internal event
+log with columns aligned to the WSDL EventInfo schema:
+
+    Id, EventTypeId, EventTypeName, DateTime, HostName,
+    AccesspointId, AccesspointName, EntranceId, EntranceName,
+    IdentifierId, Identifier, CarrierId, CarrierFullName
+
+The `Granted` boolean is derived from EventTypeName:
+  - "Access granted*"  →  True
+  - "Access denied*"   →  False
+  - Other events       →  NaN (excluded from grant/deny analysis)
 """
 
 import os
@@ -29,39 +41,48 @@ def get_connection_string() -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# SQL Query — vw_AeosEventLog (AEOS WSDL EventInfo column naming)
+# ---------------------------------------------------------------------------
+# This view must be created by the DBA to expose the AEOS internal event
+# table with standardized column names matching the SOAP WSDL schema.
+#
+# See README.md for the CREATE VIEW template.
+# ---------------------------------------------------------------------------
+
 EVENTS_QUERY = """
 SELECT
-    e.EventTime,
-    e.EventType,
-    e.Granted,
-    e.ReaderName,
-    p.PersonnelNr,
-    p.LastName,
-    p.FirstName,
-    p.Company,
-    ap.Name        AS AccessPointName,
-    ap.Id          AS AccessPointId,
-    c.BadgeNumber
-FROM dbo.Event e WITH (NOLOCK)
-LEFT JOIN dbo.Carrier c   WITH (NOLOCK) ON e.CarrierId = c.Id
-LEFT JOIN dbo.Person  p   WITH (NOLOCK) ON c.PersonId  = p.Id
-LEFT JOIN dbo.AccessPoint ap WITH (NOLOCK) ON e.AccessPointId = ap.Id
-WHERE e.EventTime >= ?
-  AND e.EventTime <  ?
-ORDER BY e.EventTime;
+    ev.[DateTime],
+    ev.EventTypeName,
+    ev.AccesspointId,
+    ev.AccesspointName,
+    ev.EntranceId,
+    ev.EntranceName,
+    ev.CarrierId,
+    ev.CarrierFullName,
+    ev.IdentifierId,
+    ev.Identifier,
+    ev.HostName
+FROM dbo.vw_AeosEventLog ev WITH (NOLOCK)
+WHERE ev.[DateTime] >= ?
+  AND ev.[DateTime] <  ?
+ORDER BY ev.[DateTime];
 """
 
 
 def load_events(days: int = 30) -> pd.DataFrame:
     """
-    Load access events from SQL Server into a pandas DataFrame.
+    Load access events from the AEOS SQL Server view into a pandas DataFrame.
 
     Args:
         days: Number of past days to retrieve.
 
     Returns:
-        DataFrame with columns: EventTime, EventType, Granted, ReaderName,
-        PersonnelNr, LastName, FirstName, Company, AccessPointName, etc.
+        DataFrame with AEOS EventInfo columns plus derived fields:
+        - Granted (bool): True for "Access granted*", False for "Access denied*"
+        - Hour (int): Hour of day (0-23)
+        - DayOfWeek (str): Day name
+        - Date: Date part of DateTime
     """
     end = datetime.utcnow()
     start = end - timedelta(days=days)
@@ -72,10 +93,41 @@ def load_events(days: int = 30) -> pd.DataFrame:
     finally:
         conn.close()
 
-    if "EventTime" in df.columns:
-        df["EventTime"] = pd.to_datetime(df["EventTime"])
-        df["Hour"] = df["EventTime"].dt.hour
-        df["DayOfWeek"] = df["EventTime"].dt.day_name()
-        df["Date"] = df["EventTime"].dt.date
+    if "DateTime" in df.columns:
+        df["DateTime"] = pd.to_datetime(df["DateTime"])
+        df["Hour"] = df["DateTime"].dt.hour
+        df["DayOfWeek"] = df["DateTime"].dt.day_name()
+        df["Date"] = df["DateTime"].dt.date
+
+    # Derive Granted boolean from AEOS EventTypeName
+    if "EventTypeName" in df.columns:
+        df["Granted"] = df["EventTypeName"].apply(_classify_granted)
 
     return df
+
+
+def _classify_granted(event_type_name: str) -> object:
+    """
+    Classify an AEOS EventTypeName into granted/denied.
+
+    AEOS event types are descriptive strings, not booleans:
+      - "Access granted"                     → True
+      - "Access granted (first person)"      → True
+      - "Access granted with extended unlock" → True
+      - "Access denied"                      → False
+      - "Access denied: badge not valid"     → False
+      - "Access denied: badge blocked"       → False
+      - "Access denied: no authorisation"    → False
+      - "Access denied: antipassback"        → False
+      - "Door forced open"                   → None (alarm, not grant/deny)
+      - "Door held open"                     → None
+      - "Tailgating"                         → None
+    """
+    if not isinstance(event_type_name, str):
+        return None
+    lower = event_type_name.lower().strip()
+    if lower.startswith("access granted"):
+        return True
+    if lower.startswith("access denied"):
+        return False
+    return None  # Alarm or other event type
